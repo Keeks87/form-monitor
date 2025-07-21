@@ -2,9 +2,9 @@ const { chromium } = require('playwright');
 const { google } = require('googleapis');
 
 const cleaned = process.env.GOOGLE_SERVICE_JSON
-  .replace(/\r\n/g, '\n')  // Convert CRLF to LF
-  .replace(/\"/g, '"')     // Convert escaped quotes
-  .replace(/^"|"$/g, '');  // Strip enclosing quotes
+  .replace(/\r\n/g, '\n')
+  .replace(/\"/g, '"')
+  .replace(/^"|"$/g, '');
 
 const credentials = JSON.parse(cleaned);
 const auth = new google.auth.GoogleAuth({
@@ -64,12 +64,17 @@ async function run() {
       const start = Date.now();
       await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-      // ✅ Dismiss Cookiebot banner if present
+      // Try to click "Accept All" in Cookiebot
       try {
-        await page.locator('#CybotCookiebotDialogBodyButtonAccept').click({ timeout: 3000 });
-        console.log('✅ Cookiebot accepted');
+        const cookieBtn = page.locator('#CybotCookiebotDialogBodyButtonAccept');
+        if (await cookieBtn.isVisible({ timeout: 3000 })) {
+          console.log('✅ Clicking Cookiebot accept button...');
+          await cookieBtn.click();
+          await page.waitForSelector('#CybotCookiebotDialog', { state: 'detached', timeout: 5000 });
+          console.log('✅ Cookiebot dismissed');
+        }
       } catch {
-        console.log('ℹ️ No Cookiebot found or already dismissed');
+        console.log('ℹ️ No Cookiebot to dismiss or already gone');
       }
 
       if (emailSelector) {
