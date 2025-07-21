@@ -2,8 +2,8 @@ const { chromium } = require('playwright');
 const { google } = require('googleapis');
 
 const cleaned = process.env.GOOGLE_SERVICE_JSON
-  .replace(/\\r\\n/g, '\\n')  // Convert CRLF to LF
-  .replace(/\\"/g, '"')       // Convert escaped quotes
+  .replace(/\r\n/g, '\n')  // Convert CRLF to LF
+  .replace(/\"/g, '"')       // Convert escaped quotes
   .replace(/^"|"$/g, '');     // Strip enclosing quotes
 
 const credentials = JSON.parse(cleaned);
@@ -21,7 +21,7 @@ async function getConfigRows() {
   const sheets = google.sheets({ version: 'v4', auth: client });
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${CONFIG_SHEET}!A2:I`
+    range: `${CONFIG_SHEET}!A2:K`
   });
   return res.data.values || [];
 }
@@ -47,6 +47,7 @@ async function run() {
       emailSelector, emailValue,
       passwordSelector, passwordValue,
       confirmSelector, confirmValue,
+      checkboxSelector,
       submitButtonSelector,
       redirectURL
     ] = row;
@@ -76,6 +77,11 @@ async function run() {
       if (confirmSelector) {
         console.log(`Filling confirm password: ${confirmSelector}`);
         await page.fill(confirmSelector, confirmValue);
+      }
+
+      if (checkboxSelector) {
+        console.log(`Clicking checkbox: ${checkboxSelector}`);
+        await page.click(checkboxSelector);
       }
 
       if (submitButtonSelector) {
