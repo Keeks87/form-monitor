@@ -34,6 +34,7 @@ async function logResult(row) {
 
 async function run() {
   const configRows = await getConfigRows();
+  console.log(`Fetched ${configRows.length} config rows`);
 
   for (const row of configRows) {
     const [
@@ -53,24 +54,45 @@ async function run() {
     let error = '';
 
     try {
+      console.log(`Navigating to: ${url}`);
       const start = Date.now();
       await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-      if (emailSelector) await page.fill(emailSelector, emailValue);
-      if (passwordSelector) await page.fill(passwordSelector, passwordValue);
-      if (confirmSelector) await page.fill(confirmSelector, confirmValue);
-      if (submitButtonSelector) await page.click(submitButtonSelector);
+      if (emailSelector) {
+        console.log(`Filling email: ${emailSelector} = ${emailValue}`);
+        await page.fill(emailSelector, emailValue);
+      }
 
-      await page.waitForNavigation({ waitUntil: 'load' });
+      if (passwordSelector) {
+        console.log(`Filling password: ${passwordSelector}`);
+        await page.fill(passwordSelector, passwordValue);
+      }
 
-      if (redirectURL && !page.url().includes(redirectURL)) {
-        throw new Error('Redirect URL mismatch');
+      if (confirmSelector) {
+        console.log(`Filling confirm password: ${confirmSelector}`);
+        await page.fill(confirmSelector, confirmValue);
+      }
+
+      if (submitButtonSelector) {
+        console.log(`Clicking submit button: ${submitButtonSelector}`);
+        await page.click(submitButtonSelector);
+      }
+
+      console.log('Waiting for navigation...');
+      await page.waitForNavigation({ waitUntil: 'load', timeout: 10000 });
+
+      const finalUrl = page.url();
+      console.log(`Final URL: ${finalUrl}`);
+      if (redirectURL && !finalUrl.includes(redirectURL)) {
+        throw new Error(`Redirect URL mismatch: expected "${redirectURL}", got "${finalUrl}"`);
       }
 
       loadTime = Date.now() - start;
       status = '✅';
+      console.log(`✅ Success: Load time ${loadTime}ms`);
     } catch (err) {
       error = err.message;
+      console.error(`❌ Error during test: ${error}`);
     } finally {
       await browser.close();
       await logResult([timestamp, url, loadTime, status, error]);
