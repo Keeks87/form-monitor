@@ -1,7 +1,12 @@
 const { chromium } = require('playwright');
 const { google } = require('googleapis');
 
-const credentials = JSON.parse(process.env.GOOGLE_SERVICE_JSON.replace(/\\n/g, '\n'));
+const cleaned = process.env.GOOGLE_SERVICE_JSON
+  .replace(/\\r\\n/g, '\\n')  // Convert CRLF to LF
+  .replace(/\\"/g, '"')       // Convert escaped quotes
+  .replace(/^"|"$/g, '');     // Strip enclosing quotes
+
+const credentials = JSON.parse(cleaned);
 const auth = new google.auth.GoogleAuth({
   credentials,
   scopes: ['https://www.googleapis.com/auth/spreadsheets']
