@@ -3,8 +3,8 @@ const { google } = require('googleapis');
 
 const cleaned = process.env.GOOGLE_SERVICE_JSON
   .replace(/\r\n/g, '\n')  // Convert CRLF to LF
-  .replace(/\"/g, '"')       // Convert escaped quotes
-  .replace(/^"|"$/g, '');     // Strip enclosing quotes
+  .replace(/\"/g, '"')     // Convert escaped quotes
+  .replace(/^"|"$/g, '');  // Strip enclosing quotes
 
 const credentials = JSON.parse(cleaned);
 const auth = new google.auth.GoogleAuth({
@@ -63,6 +63,14 @@ async function run() {
       console.log(`Navigating to: ${url}`);
       const start = Date.now();
       await page.goto(url, { waitUntil: 'domcontentloaded' });
+
+      // ✅ Dismiss Cookiebot banner if present
+      try {
+        await page.locator('#CybotCookiebotDialogBodyButtonAccept').click({ timeout: 3000 });
+        console.log('✅ Cookiebot accepted');
+      } catch {
+        console.log('ℹ️ No Cookiebot found or already dismissed');
+      }
 
       if (emailSelector) {
         console.log(`Filling email: ${emailSelector} = ${emailValue}`);
