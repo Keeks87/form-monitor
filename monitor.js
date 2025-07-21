@@ -3,7 +3,7 @@ const { google } = require('googleapis');
 
 const cleaned = process.env.GOOGLE_SERVICE_JSON
   .replace(/\r\n/g, '\n')
-  .replace(/\"/g, '"')
+  .replace(/\\"/g, '"')
   .replace(/^"|"$/g, '');
 
 const credentials = JSON.parse(cleaned);
@@ -64,17 +64,16 @@ async function run() {
       const start = Date.now();
       await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-      // Try to click "Accept All" in Cookiebot
+      // Handle Cookiebot
+      const cookieButton = '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll';
       try {
-        const cookieBtn = page.locator('#CybotCookiebotDialogBodyButtonAccept');
-        if (await cookieBtn.isVisible({ timeout: 3000 })) {
-          console.log('✅ Clicking Cookiebot accept button...');
-          await cookieBtn.click();
-          await page.waitForSelector('#CybotCookiebotDialog', { state: 'detached', timeout: 5000 });
-          console.log('✅ Cookiebot dismissed');
-        }
-      } catch {
-        console.log('ℹ️ No Cookiebot to dismiss or already gone');
+        await page.waitForSelector(cookieButton, { timeout: 5000 });
+        console.log('🟣 Cookiebot detected — clicking Accept All');
+        await page.click(cookieButton);
+        await page.waitForSelector('#CybotCookiebotDialog', { state: 'detached', timeout: 5000 });
+        console.log('✅ Cookiebot dismissed');
+      } catch (e) {
+        console.log('ℹ️ No Cookiebot found or already dismissed');
       }
 
       if (emailSelector) {
