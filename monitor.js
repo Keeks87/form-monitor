@@ -101,8 +101,15 @@ async function run() {
         await page.click(submitButtonSelector);
       }
 
-      console.log('Waiting for navigation...');
-      await page.waitForNavigation({ waitUntil: 'load', timeout: 10000 });
+      console.log('Waiting for redirect or page change...');
+      await page.waitForTimeout(5000); // Give time for AJAX or delayed redirects
+      const finalUrl = page.url();
+      
+      console.log(`Final URL: ${finalUrl}`);
+      if (redirectURL && !finalUrl.includes(redirectURL)) {
+        throw new Error(`Redirect URL mismatch: expected "${redirectURL}", got "${finalUrl}"`);
+      }
+
 
       const finalUrl = page.url();
       console.log(`Final URL: ${finalUrl}`);
