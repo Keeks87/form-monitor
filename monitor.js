@@ -21,7 +21,7 @@ async function getConfigRows() {
   const sheets = google.sheets({ version: 'v4', auth: client });
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${CONFIG_SHEET}!A2:K`
+    range: `${CONFIG_SHEET}!A2:L` // Added column L for the label
   });
   return res.data.values || [];
 }
@@ -31,16 +31,10 @@ async function logResult(row) {
   const sheets = google.sheets({ version: 'v4', auth: client });
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: `${RESULTS_SHEET}!A:E`,
+    range: `${RESULTS_SHEET}!A:F`, // Now includes label in column F
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] }
   });
-}
-
-function generateUniqueEmail(email) {
-  const timestamp = Date.now();
-  const [user, domain] = email.split('@');
-  return `${user}+${timestamp}@${domain}`;
 }
 
 async function run() {
@@ -55,7 +49,8 @@ async function run() {
       confirmSelector, confirmValue,
       checkboxSelector,
       submitButtonSelector,
-      redirectURL
+      redirectURL,
+      label // new label field from column L
     ] = row;
 
     const browser = await chromium.launch();
@@ -82,11 +77,9 @@ async function run() {
         console.log('ℹ️ No Cookiebot found or already dismissed');
       }
 
-      // Use a unique email each time
-      const uniqueEmail = generateUniqueEmail(emailValue);
       if (emailSelector) {
-        console.log(`Filling email: ${emailSelector} = ${uniqueEmail}`);
-        await page.fill(emailSelector, uniqueEmail);
+        console.log(`Filling email: ${emailSelector} = ${emailValue}`);
+        await page.fill(emailSelector, emailValue);
       }
 
       if (passwordSelector) {
@@ -110,7 +103,7 @@ async function run() {
       }
 
       console.log('Waiting for redirect or page change...');
-      await page.waitForTimeout(5000); // Wait for AJAX or redirect
+      await page.waitForTimeout(5000);
       const finalUrl = page.url();
 
       console.log(`Final URL: ${finalUrl}`);
@@ -126,7 +119,7 @@ async function run() {
       console.error(`❌ Error during test: ${error}`);
     } finally {
       await browser.close();
-      await logResult([timestamp, url, loadTime, status, error]);
+      await logResult([timestamp, url, loadTime, status, error, label]);
     }
   }
 }
