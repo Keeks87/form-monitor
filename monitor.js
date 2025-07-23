@@ -21,7 +21,7 @@ async function getConfigRows() {
   const sheets = google.sheets({ version: 'v4', auth: client });
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${CONFIG_SHEET}!A2:L`
+    range: `${CONFIG_SHEET}!A2:L` // Added column L for label
   });
   return res.data.values || [];
 }
@@ -31,7 +31,7 @@ async function logResult(row) {
   const sheets = google.sheets({ version: 'v4', auth: client });
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: `${RESULTS_SHEET}!A:F`,
+    range: `${RESULTS_SHEET}!A:F`, // Columns: timestamp, url, loadTime, status, error, label
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] }
   });
@@ -78,9 +78,8 @@ async function run() {
       }
 
       if (emailSelector) {
-        const uniqueEmail = emailValue.replace('@', `+${Date.now()}@`);
-        console.log(`Filling email: ${emailSelector} = ${uniqueEmail}`);
-        await page.fill(emailSelector, uniqueEmail);
+        console.log(`Filling email: ${emailSelector} = ${emailValue}`);
+        await page.fill(emailSelector, emailValue);
       }
 
       if (passwordSelector) {
@@ -89,9 +88,8 @@ async function run() {
       }
 
       if (confirmSelector) {
-        const nameOrFallback = confirmValue || 'Form Tester';
-        console.log(`Filling confirm password/name: ${confirmSelector} = ${nameOrFallback}`);
-        await page.fill(confirmSelector, nameOrFallback);
+        console.log(`Filling confirm password: ${confirmSelector}`);
+        await page.fill(confirmSelector, confirmValue);
       }
 
       if (checkboxSelector) {
@@ -105,12 +103,12 @@ async function run() {
       }
 
       console.log('Waiting for redirect or page change...');
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(5000); // Wait for async redirects
       const finalUrl = page.url();
 
       console.log(`Final URL: ${finalUrl}`);
       if (finalUrl.includes('/register')) {
-        throw new Error('Form did not redirect, still on register page (likely due to validation error)');
+        throw new Error(`Form did not redirect – ended on: ${finalUrl}`);
       }
 
       loadTime = Date.now() - start;
@@ -125,7 +123,7 @@ async function run() {
     }
   }
 
-  // End of batch marker
+  // Add end of batch marker
   const endTime = new Date();
   const formattedDate = endTime.toLocaleString('en-GB', {
     day: '2-digit', month: '2-digit', year: 'numeric',
