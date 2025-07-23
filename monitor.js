@@ -37,6 +37,12 @@ async function logResult(row) {
   });
 }
 
+function generateUniqueEmail(email) {
+  const timestamp = Date.now();
+  const [user, domain] = email.split('@');
+  return `${user}+${timestamp}@${domain}`;
+}
+
 async function run() {
   const configRows = await getConfigRows();
   console.log(`Fetched ${configRows.length} config rows`);
@@ -76,9 +82,11 @@ async function run() {
         console.log('ℹ️ No Cookiebot found or already dismissed');
       }
 
+      // Use a unique email each time
+      const uniqueEmail = generateUniqueEmail(emailValue);
       if (emailSelector) {
-        console.log(`Filling email: ${emailSelector} = ${emailValue}`);
-        await page.fill(emailSelector, emailValue);
+        console.log(`Filling email: ${emailSelector} = ${uniqueEmail}`);
+        await page.fill(emailSelector, uniqueEmail);
       }
 
       if (passwordSelector) {
@@ -102,7 +110,7 @@ async function run() {
       }
 
       console.log('Waiting for redirect or page change...');
-      await page.waitForTimeout(5000); // Give time for AJAX or delayed redirects
+      await page.waitForTimeout(5000); // Wait for AJAX or redirect
       const finalUrl = page.url();
 
       console.log(`Final URL: ${finalUrl}`);
