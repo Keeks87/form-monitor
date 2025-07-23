@@ -50,7 +50,7 @@ async function run() {
       checkboxSelector,
       submitButtonSelector,
       redirectURL,
-      label // new label field from column L
+      label
     ] = row;
 
     const browser = await chromium.launch();
@@ -122,6 +122,15 @@ async function run() {
       await logResult([timestamp, url, loadTime, status, error, label]);
     }
   }
+
+  // Add end of batch marker
+  const endTime = new Date();
+  const formattedDate = endTime.toLocaleString('en-GB', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  }).replace(',', '');
+  await logResult([`END OF BATCH – ${formattedDate}`, '', '', '', '', '']);
 }
+
 
 run();
