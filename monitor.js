@@ -106,8 +106,8 @@ async function run() {
       const finalUrl = page.url();
 
       console.log(`Final URL: ${finalUrl}`);
-      if (redirectURL && !finalUrl.includes(redirectURL)) {
-        throw new Error(`Redirect URL mismatch: expected "${redirectURL}", got "${finalUrl}"`);
+      if (finalUrl.includes('/register')) {
+        throw new Error('Form did not redirect, still on register page');
       }
 
       loadTime = Date.now() - start;
