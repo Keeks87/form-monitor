@@ -21,7 +21,7 @@ async function getConfigRows() {
   const sheets = google.sheets({ version: 'v4', auth: client });
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${CONFIG_SHEET}!A2:L` // Added column L for the label
+    range: `${CONFIG_SHEET}!A2:L`
   });
   return res.data.values || [];
 }
@@ -31,7 +31,7 @@ async function logResult(row) {
   const sheets = google.sheets({ version: 'v4', auth: client });
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: `${RESULTS_SHEET}!A:F`, // Now includes label in column F
+    range: `${RESULTS_SHEET}!A:F`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] }
   });
@@ -78,8 +78,9 @@ async function run() {
       }
 
       if (emailSelector) {
-        console.log(`Filling email: ${emailSelector} = ${emailValue}`);
-        await page.fill(emailSelector, emailValue);
+        const uniqueEmail = emailValue.replace('@', `+${Date.now()}@`);
+        console.log(`Filling email: ${emailSelector} = ${uniqueEmail}`);
+        await page.fill(emailSelector, uniqueEmail);
       }
 
       if (passwordSelector) {
@@ -88,8 +89,9 @@ async function run() {
       }
 
       if (confirmSelector) {
-        console.log(`Filling confirm password: ${confirmSelector}`);
-        await page.fill(confirmSelector, confirmValue);
+        const nameOrFallback = confirmValue || 'Form Tester';
+        console.log(`Filling confirm password/name: ${confirmSelector} = ${nameOrFallback}`);
+        await page.fill(confirmSelector, nameOrFallback);
       }
 
       if (checkboxSelector) {
@@ -108,7 +110,7 @@ async function run() {
 
       console.log(`Final URL: ${finalUrl}`);
       if (finalUrl.includes('/register')) {
-        throw new Error('Form did not redirect, still on register page');
+        throw new Error('Form did not redirect, still on register page (likely due to validation error)');
       }
 
       loadTime = Date.now() - start;
@@ -123,7 +125,7 @@ async function run() {
     }
   }
 
-  // Add end of batch marker
+  // End of batch marker
   const endTime = new Date();
   const formattedDate = endTime.toLocaleString('en-GB', {
     day: '2-digit', month: '2-digit', year: 'numeric',
@@ -131,6 +133,5 @@ async function run() {
   }).replace(',', '');
   await logResult([`END OF BATCH – ${formattedDate}`, '', '', '', '', '']);
 }
-
 
 run();
