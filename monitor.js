@@ -5,7 +5,7 @@ const path = require('path');
 
 const cleaned = process.env.GOOGLE_SERVICE_JSON
   .replace(/\r\n/g, '\n')
-  .replace(/\\"/g, '"')
+  .replace(/\"/g, '"')
   .replace(/^"|"$/g, '');
 
 const credentials = JSON.parse(cleaned);
@@ -17,11 +17,8 @@ const auth = new google.auth.GoogleAuth({
 const SHEET_ID = process.env.SHEET_ID;
 const CONFIG_SHEET = 'config';
 const RESULTS_SHEET = 'results';
-const SCREENSHOT_DIR = path.resolve(__dirname, 'screenshots');
-
-if (!fs.existsSync(SCREENSHOT_DIR)) {
-  fs.mkdirSync(SCREENSHOT_DIR);
-}
+const SCREENSHOT_DIR = path.join(__dirname, 'screenshots');
+if (!fs.existsSync(SCREENSHOT_DIR)) fs.mkdirSync(SCREENSHOT_DIR);
 
 async function getConfigRows() {
   const client = await auth.getClient();
@@ -61,19 +58,27 @@ async function run() {
     ] = row;
 
     const browser = await chromium.launch();
-    const page = await browser.newPage();
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 800 },
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' // optional
+    });
+    const page = await context.newPage();
     const timestamp = new Date().toISOString();
     let loadTime = 'N/A';
     let status = '❌';
     let error = '';
-    const uniqueEmail = emailValue.replace('@', `+${Date.now()}@`);
 
     try {
       console.log(`Navigating to: ${url}`);
       const start = Date.now();
+
+      await page.route('**/*', (route) => {
+        route.continue({ headers: { ...route.request().headers(), 'Cache-Control': 'no-cache' } });
+      });
+
       await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-      // Cookiebot
+      // Handle Cookiebot
       const cookieButton = '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll';
       try {
         await page.waitForSelector(cookieButton, { timeout: 5000 });
@@ -81,13 +86,14 @@ async function run() {
         await page.click(cookieButton);
         await page.waitForSelector('#CybotCookiebotDialog', { state: 'detached', timeout: 5000 });
         console.log('✅ Cookiebot dismissed');
-      } catch {
+      } catch (e) {
         console.log('ℹ️ No Cookiebot found or already dismissed');
       }
 
       if (emailSelector) {
-        console.log(`Filling email: ${emailSelector} = ${uniqueEmail}`);
-        await page.fill(emailSelector, uniqueEmail);
+        const dynamicEmail = emailValue.includes('@') ? emailValue.replace('@', `+${Date.now()}@`) : emailValue;
+        console.log(`Filling email: ${emailSelector} = ${dynamicEmail}`);
+        await page.fill(emailSelector, dynamicEmail);
       }
 
       if (passwordSelector) {
@@ -116,12 +122,7 @@ async function run() {
 
       console.log(`Final URL: ${finalUrl}`);
       if (finalUrl.includes('/register')) {
-        // Look for visible validation errors
-        const errorTexts = await page.$$eval('.error, .form-error, .error-message', nodes =>
-          nodes.map(n => n.innerText).filter(Boolean).join('; ')
-        );
-
-        throw new Error(`Form did not redirect, still on register page (likely due to validation error). Final URL: ${finalUrl}. Errors: ${errorTexts || 'none found'}`);
+        throw new Error(`Form did not redirect, still on register page (likely due to validation error). Final URL: ${finalUrl}`);
       }
 
       loadTime = Date.now() - start;
@@ -131,16 +132,16 @@ async function run() {
       error = err.message;
       console.error(`❌ Error during test: ${error}`);
 
-      const filename = `fail_${label.replace(/\s+/g, '_')}_${Date.now()}.png`;
-      const filepath = path.join(SCREENSHOT_DIR, filename);
-      await page.screenshot({ path: filepath, fullPage: true });
-      console.log(`📸 Screenshot saved: ${filepath}`);
+      const screenshotPath = path.join(SCREENSHOT_DIR, `fail_${label.replace(/\s+/g, '_')}_${Date.now()}.png`);
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+      console.log(`📸 Screenshot saved: ${screenshotPath}`);
     } finally {
       await browser.close();
       await logResult([timestamp, url, loadTime, status, error, label]);
     }
   }
 
+  // Add end of batch marker
   const endTime = new Date();
   const formattedDate = endTime.toLocaleString('en-GB', {
     day: '2-digit', month: '2-digit', year: 'numeric',
