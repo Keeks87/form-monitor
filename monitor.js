@@ -1,5 +1,7 @@
 const { chromium } = require('playwright');
 const { google } = require('googleapis');
+const fs = require('fs');
+const path = require('path');
 
 const cleaned = process.env.GOOGLE_SERVICE_JSON
   .replace(/\r\n/g, '\n')
@@ -21,7 +23,7 @@ async function getConfigRows() {
   const sheets = google.sheets({ version: 'v4', auth: client });
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${CONFIG_SHEET}!A2:L` // Added column L for label
+    range: `${CONFIG_SHEET}!A2:L` // Includes label column
   });
   return res.data.values || [];
 }
@@ -31,7 +33,7 @@ async function logResult(row) {
   const sheets = google.sheets({ version: 'v4', auth: client });
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
-    range: `${RESULTS_SHEET}!A:F`, // Columns: timestamp, url, loadTime, status, error, label
+    range: `${RESULTS_SHEET}!A:F`,
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [row] }
   });
@@ -40,6 +42,12 @@ async function logResult(row) {
 async function run() {
   const configRows = await getConfigRows();
   console.log(`Fetched ${configRows.length} config rows`);
+
+  // Ensure screenshots folder exists
+  const screenshotDir = path.join(__dirname, 'screenshots');
+  if (!fs.existsSync(screenshotDir)) {
+    fs.mkdirSync(screenshotDir);
+  }
 
   for (const row of configRows) {
     const [
@@ -73,7 +81,7 @@ async function run() {
         await page.click(cookieButton);
         await page.waitForSelector('#CybotCookiebotDialog', { state: 'detached', timeout: 5000 });
         console.log('✅ Cookiebot dismissed');
-      } catch (e) {
+      } catch {
         console.log('ℹ️ No Cookiebot found or already dismissed');
       }
 
@@ -103,12 +111,12 @@ async function run() {
       }
 
       console.log('Waiting for redirect or page change...');
-      await page.waitForTimeout(5000); // Wait for async redirects
+      await page.waitForTimeout(5000);
       const finalUrl = page.url();
 
       console.log(`Final URL: ${finalUrl}`);
       if (finalUrl.includes('/register')) {
-        throw new Error(`Form did not redirect – ended on: ${finalUrl}`);
+        throw new Error(`Form did not redirect, still on register page (likely due to validation error). Final URL: ${finalUrl}`);
       }
 
       loadTime = Date.now() - start;
@@ -117,6 +125,13 @@ async function run() {
     } catch (err) {
       error = err.message;
       console.error(`❌ Error during test: ${error}`);
+
+      // Save screenshot on failure
+      const safeLabel = (label || 'unknown').replace(/[^\w\d-_]/g, '_');
+      const screenshotName = `fail_${safeLabel}_${Date.now()}.png`;
+      const screenshotPath = path.join(screenshotDir, screenshotName);
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+      console.log(`📸 Screenshot saved: ${screenshotPath}`);
     } finally {
       await browser.close();
       await logResult([timestamp, url, loadTime, status, error, label]);
