@@ -17,13 +17,18 @@ const auth = new google.auth.GoogleAuth({
 const SHEET_ID = process.env.SHEET_ID;
 const CONFIG_SHEET = 'config';
 const RESULTS_SHEET = 'results';
+const SCREENSHOT_DIR = path.resolve(__dirname, 'screenshots');
+
+if (!fs.existsSync(SCREENSHOT_DIR)) {
+  fs.mkdirSync(SCREENSHOT_DIR);
+}
 
 async function getConfigRows() {
   const client = await auth.getClient();
   const sheets = google.sheets({ version: 'v4', auth: client });
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: `${CONFIG_SHEET}!A2:L` // Includes label column
+    range: `${CONFIG_SHEET}!A2:L`
   });
   return res.data.values || [];
 }
@@ -43,12 +48,6 @@ async function run() {
   const configRows = await getConfigRows();
   console.log(`Fetched ${configRows.length} config rows`);
 
-  // Ensure screenshots folder exists
-  const screenshotDir = path.join(__dirname, 'screenshots');
-  if (!fs.existsSync(screenshotDir)) {
-    fs.mkdirSync(screenshotDir);
-  }
-
   for (const row of configRows) {
     const [
       url,
@@ -67,13 +66,14 @@ async function run() {
     let loadTime = 'N/A';
     let status = '❌';
     let error = '';
+    const uniqueEmail = emailValue.replace('@', `+${Date.now()}@`);
 
     try {
       console.log(`Navigating to: ${url}`);
       const start = Date.now();
       await page.goto(url, { waitUntil: 'domcontentloaded' });
 
-      // Handle Cookiebot
+      // Cookiebot
       const cookieButton = '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll';
       try {
         await page.waitForSelector(cookieButton, { timeout: 5000 });
@@ -86,8 +86,8 @@ async function run() {
       }
 
       if (emailSelector) {
-        console.log(`Filling email: ${emailSelector} = ${emailValue}`);
-        await page.fill(emailSelector, emailValue);
+        console.log(`Filling email: ${emailSelector} = ${uniqueEmail}`);
+        await page.fill(emailSelector, uniqueEmail);
       }
 
       if (passwordSelector) {
@@ -116,7 +116,12 @@ async function run() {
 
       console.log(`Final URL: ${finalUrl}`);
       if (finalUrl.includes('/register')) {
-        throw new Error(`Form did not redirect, still on register page (likely due to validation error). Final URL: ${finalUrl}`);
+        // Look for visible validation errors
+        const errorTexts = await page.$$eval('.error, .form-error, .error-message', nodes =>
+          nodes.map(n => n.innerText).filter(Boolean).join('; ')
+        );
+
+        throw new Error(`Form did not redirect, still on register page (likely due to validation error). Final URL: ${finalUrl}. Errors: ${errorTexts || 'none found'}`);
       }
 
       loadTime = Date.now() - start;
@@ -126,19 +131,16 @@ async function run() {
       error = err.message;
       console.error(`❌ Error during test: ${error}`);
 
-      // Save screenshot on failure
-      const safeLabel = (label || 'unknown').replace(/[^\w\d-_]/g, '_');
-      const screenshotName = `fail_${safeLabel}_${Date.now()}.png`;
-      const screenshotPath = path.join(screenshotDir, screenshotName);
-      await page.screenshot({ path: screenshotPath, fullPage: true });
-      console.log(`📸 Screenshot saved: ${screenshotPath}`);
+      const filename = `fail_${label.replace(/\s+/g, '_')}_${Date.now()}.png`;
+      const filepath = path.join(SCREENSHOT_DIR, filename);
+      await page.screenshot({ path: filepath, fullPage: true });
+      console.log(`📸 Screenshot saved: ${filepath}`);
     } finally {
       await browser.close();
       await logResult([timestamp, url, loadTime, status, error, label]);
     }
   }
 
-  // Add end of batch marker
   const endTime = new Date();
   const formattedDate = endTime.toLocaleString('en-GB', {
     day: '2-digit', month: '2-digit', year: 'numeric',
