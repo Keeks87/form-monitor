@@ -131,28 +131,49 @@ async function run() {
         console.log('ℹ️ No Cookiebot found or already dismissed');
       }
 
-      // Fill email with a unique value when base value contains '@'
+      // Always generate a unique email each run to avoid duplicate account errors.
+      // We ignore any previous value and construct a new email using the base
+      // username/domain (if provided) and the current timestamp.  Quotes
+      // and whitespace are stripped to ensure a valid address.
       if (emailSelector) {
-        let emailToUse;
-        if (emailValue && emailValue.includes('@')) {
-          const [user, domain] = emailValue.split('@');
-          emailToUse = `${user}+${Date.now()}@${domain}`;
-        } else {
-          emailToUse = emailValue;
+        let domain = 'example.com';
+        let userPart = 'test';
+        const base = (emailValue || '').replace(/["']/g, '').trim();
+        if (base.includes('@')) {
+          const [user, dom] = base.split('@');
+          userPart = user.replace(/[^a-zA-Z0-9]/g, '') || 'user';
+          domain = dom || domain;
         }
-        console.log(`Filling email: ${emailSelector} = ${emailToUse}`);
-        await page.fill(emailSelector, emailToUse);
+        const timestampEmail = `${userPart}+${Date.now()}@${domain}`;
+        console.log(`Filling email: ${emailSelector} = ${timestampEmail}`);
+        await page.fill(emailSelector, timestampEmail);
       }
 
-      // Fill password
+      // Fill password with a sensible default if the provided value is too short or missing.
       if (passwordSelector) {
+        let pwd = passwordValue;
+        if (!pwd || String(pwd).length < 6) {
+          // Use a fallback that satisfies typical minimum length rules
+          pwd = 'TestPass123';
+        }
         console.log(`Filling password: ${passwordSelector}`);
-        await page.fill(passwordSelector, passwordValue);
+        await page.fill(passwordSelector, pwd);
       }
 
-      // Fill confirm (can be second password or full name)
+      // Fill confirm field (can be second password or full name).  Strip quotes and
+      // whitespace to avoid invalid inputs.  If no confirmValue is provided and
+      // the confirm likely corresponds to a second password field, reuse the
+      // sanitized password.
       if (confirmSelector) {
-        const confirmData = confirmValue || passwordValue || '';
+        let confirmData = confirmValue || passwordValue || '';
+        confirmData = String(confirmData).replace(/["']/g, '').trim();
+        if (!confirmValue && passwordSelector) {
+          let pwd = passwordValue;
+          if (!pwd || String(pwd).length < 6) {
+            pwd = 'TestPass123';
+          }
+          confirmData = String(pwd).replace(/["']/g, '').trim();
+        }
         console.log(`Filling confirm field: ${confirmSelector} = ${confirmData}`);
         await page.fill(confirmSelector, confirmData);
       }
